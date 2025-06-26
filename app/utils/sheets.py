@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from google.oauth2 import service_account
 
 # Constants
 # SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
