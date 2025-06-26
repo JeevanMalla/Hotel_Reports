@@ -29,9 +29,6 @@ def check_password():
         return False
     else:
         return True
-        return False
-    else:
-        return True
 
 def main():
     if not check_password():
