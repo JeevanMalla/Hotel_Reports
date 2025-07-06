@@ -10,6 +10,7 @@ from utils.data_processing import process_data_for_date, create_vegetable_report
 from database.mongodb import push_data_to_mongodb, get_vegetable_prices, save_vegetable_prices
 from reports.individual_reports import create_individual_hotel_reports_pdf
 from reports.combined_reports import create_combined_report_pdf
+from reports.bills_reports import create_kitchen_bills_pdf, create_kitchen_bills_preview
 
 def check_password():
     """Simple password authentication"""
@@ -45,7 +46,7 @@ def main():
     
     # Sidebar for navigation
     st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Choose a page:", ["Home", "Data Preview", "Price Management"])
+    page = st.sidebar.selectbox("Choose a page:", ["Home", "Data Preview", "Price Management", "Bills"])
     
     if page == "Home":
         st.header("Generate Reports")
@@ -88,7 +89,7 @@ def main():
                 
                 try:
                     # Generate reports
-                    veg_report_data, vendor_report_data, combined_pdf_buffer, individual_hotel_pdf_buffer = generate_reports(df, selected_date)
+                    veg_report_data, vendor_report_data, combined_pdf_buffer, individual_hotel_pdf_buffer, kitchen_bills_pdf_buffer, kitchen_bills_preview = generate_reports(df, selected_date)
                     
                     # Step 4: Complete
                     status_text.text("Step 4/4: Finalizing...")
@@ -117,8 +118,8 @@ def main():
                         # PDF download buttons
                         st.markdown("### 📥 Download Reports")
                         
-                        # Create two columns for download buttons
-                        col1, col2 = st.columns(2)
+                        # Create three columns for download buttons
+                        col1, col2, col3 = st.columns(3)
                         
                         with col1:
                             if combined_pdf_buffer:
@@ -138,6 +139,16 @@ def main():
                                     file_name=f"individual_hotel_reports_{selected_date.strftime('%Y%m%d')}.pdf",
                                     mime="application/pdf",
                                     help="Downloads individual reports for each hotel (one hotel per page)"
+                                )
+                        
+                        with col3:
+                            if kitchen_bills_pdf_buffer:
+                                st.download_button(
+                                    label="🧾 Download Kitchen Bills",
+                                    data=kitchen_bills_pdf_buffer.getvalue(),
+                                    file_name=f"kitchen_bills_{selected_date.strftime('%Y%m%d')}.pdf",
+                                    mime="application/pdf",
+                                    help="Downloads bills for each kitchen sorted alphabetically by vegetable name"
                                 )
                         
                         # Preview data
@@ -402,30 +413,91 @@ def main():
         else:
             st.warning(f"No data found for date: {selected_date}")
 
+    elif page == "Bills":
+        st.header("🧾 Kitchen Bills")
+        
+        # Date selector and Fetch Data button in the same row
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            selected_date = st.date_input(
+                "Select Date:",
+                value=datetime.now().date(),
+                help="Select the date for which you want to view kitchen bills"
+            )
+        
+        with col2:
+            fetch_data = st.button("🔄 Fetch Latest Data", help="Refresh data from Google Sheets")
+            if fetch_data:
+                st.cache_data.clear()
+                st.success("Data refreshed from Google Sheets!")
+                st.rerun()
+        
+        # Get data
+        with st.spinner("Loading data..."):
+            df = get_google_sheets_data()
+            filtered_df, _ = process_data_for_date(df, selected_date)
+            
+            if filtered_df.empty:
+                st.warning(f"No data found for date: {selected_date.strftime('%Y-%m-%d')}")
+            else:
+                # Generate kitchen bills preview
+                kitchen_bills_preview = create_kitchen_bills_preview(filtered_df, selected_date)
+                
+                if kitchen_bills_preview:
+                    # Generate PDF for download
+                    kitchen_bills_pdf_buffer = create_kitchen_bills_pdf(filtered_df, selected_date)
+                    
+                    # Download button
+                    if kitchen_bills_pdf_buffer:
+                        st.download_button(
+                            label="📥 Download Kitchen Bills PDF",
+                            data=kitchen_bills_pdf_buffer.getvalue(),
+                            file_name=f"kitchen_bills_{selected_date.strftime('%Y%m%d')}.pdf",
+                            mime="application/pdf",
+                            help="Download bills for each kitchen sorted alphabetically by vegetable name"
+                        )
+                    
+                    # Display preview
+                    st.subheader("Bills Preview")
+                    
+                    # Display each hotel and its kitchens
+                    for hotel, kitchens in kitchen_bills_preview.items():
+                        with st.expander(f"Hotel: {hotel}", expanded=True):
+                            for kitchen, kitchen_data in kitchens.items():
+                                st.markdown(f"#### Kitchen: {kitchen}")
+                                st.dataframe(kitchen_data['data'], use_container_width=True)
+                                st.markdown(f"**Grand Total: {kitchen_data['grand_total']}**")
+                                st.markdown("---")
+                else:
+                    st.warning("No kitchen bills data available for the selected date.")
+
 def generate_reports(df, selected_date):
-    """Generate reports"""
+    """Generate all reports for the selected date"""
     try:
-        # Process data
+        # Process data for the selected date
         filtered_df, _ = process_data_for_date(df, selected_date)
         
         if filtered_df.empty:
-            return None, None, None, None
+            return None, None, None, None, None, None
         
-        # Create report data
+        # Create report data structures
         veg_report_data = create_vegetable_report_data(filtered_df)
         vendor_report_data = create_vendor_report_data(filtered_df)
         
-        # Generate combined PDF
+        # Generate PDFs
         combined_pdf_buffer = create_combined_report_pdf(veg_report_data, vendor_report_data, selected_date)
-        
-        # Generate individual hotel reports PDF
         individual_hotel_pdf_buffer = create_individual_hotel_reports_pdf(filtered_df, selected_date)
+        kitchen_bills_pdf_buffer = create_kitchen_bills_pdf(filtered_df, selected_date)
         
-        return veg_report_data, vendor_report_data, combined_pdf_buffer, individual_hotel_pdf_buffer
+        # Create kitchen bills preview data
+        kitchen_bills_preview = create_kitchen_bills_preview(filtered_df, selected_date)
         
+        return veg_report_data, vendor_report_data, combined_pdf_buffer, individual_hotel_pdf_buffer, kitchen_bills_pdf_buffer, kitchen_bills_preview
     except Exception as e:
         st.error(f"Error generating reports: {str(e)}")
-        return None, None, None, None
+        import traceback
+        st.error(traceback.format_exc())
+        return None, None, None, None, None, None
 
 if __name__ == "__main__":
     main()
