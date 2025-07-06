@@ -130,18 +130,18 @@ def create_kitchen_bills_pdf(df, selected_date):
                         
                         # Get price if available
                         price = ""
-                        if 'ACTUAL PRICE' in veg_data.columns:
-                            price_values = veg_data['ACTUAL PRICE'].dropna()
+                        if 'PRICE' in veg_data.columns:
+                            price_values = veg_data['PRICE'].dropna()
                             if not price_values.empty:
                                 price = price_values.iloc[0]
                         
                         # Calculate total amount if price is available
-                        total_amount = ""
+                        total = ""
                         if price and str(price).strip() and str(price) != 'nan':
                             try:
                                 price_float = float(price)
-                                total_amount = price_float * total_qty
-                                total_amount = f"₹{total_amount:.2f}"
+                                total = price_float * total_qty
+                                total = f"₹{total:.2f}"
                                 price = f"₹{price_float:.2f}"
                             except (ValueError, TypeError):
                                 pass
@@ -151,7 +151,7 @@ def create_kitchen_bills_pdf(df, selected_date):
                             telugu_name if telugu_name and str(telugu_name) != 'nan' else '',
                             f"{total_qty} {units}",
                             price,
-                            total_amount
+                            total
                         ])
                 
                 # Sort alphabetically by vegetable name
@@ -159,7 +159,7 @@ def create_kitchen_bills_pdf(df, selected_date):
                 
                 if kitchen_report_data:
                     # Create table
-                    table_data = [['Vegetable Name', 'Telugu Name', 'Quantity', 'Price', 'Total']]
+                    table_data = [['Vegetable Name', 'Telugu Name', 'Quantity', 'PRICE', 'TOTAL']]
                     table_data.extend(kitchen_report_data)
                     
                     # Calculate column widths
@@ -277,18 +277,18 @@ def create_kitchen_bills_preview(df, selected_date):
                         
                         # Get price if available
                         price = ""
-                        if 'ACTUAL PRICE' in veg_data.columns:
-                            price_values = veg_data['ACTUAL PRICE'].dropna()
+                        if 'PRICE' in veg_data.columns:
+                            price_values = veg_data['PRICE'].dropna()
                             if not price_values.empty:
                                 price = price_values.iloc[0]
                         
                         # Calculate total amount if price is available
-                        total_amount = ""
+                        total = ""
                         if price and str(price).strip() and str(price) != 'nan':
                             try:
                                 price_float = float(price)
-                                total_amount = price_float * total_qty
-                                total_amount = f"₹{total_amount:.2f}"
+                                total = price_float * total_qty
+                                total = f"₹{total:.2f}"
                                 price = f"₹{price_float:.2f}"
                             except (ValueError, TypeError):
                                 pass
@@ -297,8 +297,8 @@ def create_kitchen_bills_preview(df, selected_date):
                             'Vegetable Name': display_name,
                             'Telugu Name': telugu_name if telugu_name and str(telugu_name) != 'nan' else '',
                             'Quantity': f"{total_qty} {units}",
-                            'Price': price,
-                            'Total': total_amount
+                            'PRICE': price,
+                            'TOTAL': total
                         })
                 
                 # Sort alphabetically by vegetable name
@@ -311,9 +311,9 @@ def create_kitchen_bills_preview(df, selected_date):
                     # Calculate grand total
                     grand_total = 0
                     for item in kitchen_report_data:
-                        if item['Total'] and item['Total'].startswith('₹'):
+                        if item['TOTAL'] and item['TOTAL'].startswith('₹'):
                             try:
-                                grand_total += float(item['Total'][1:])
+                                grand_total += float(item['TOTAL'][1:])
                             except (ValueError, TypeError):
                                 pass
                     
