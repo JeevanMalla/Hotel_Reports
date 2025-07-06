@@ -3,7 +3,7 @@ import pandas as pd
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepTogether
 from reportlab.lib.units import inch
 import streamlit as st
 
@@ -141,8 +141,8 @@ def create_kitchen_bills_pdf(df, selected_date):
                             try:
                                 price_float = float(price)
                                 total = price_float * total_qty
-                                total = f"₹{total:.2f}"
-                                price = f"₹{price_float:.2f}"
+                                total = f"{total:.2f}"
+                                price = f"{price_float:.2f}"
                             except (ValueError, TypeError):
                                 pass
                         
@@ -186,22 +186,27 @@ def create_kitchen_bills_pdf(df, selected_date):
                         ('ALIGN', (2, 1), (4, -1), 'RIGHT'),  # Right align quantity, price and total columns
                     ]))
                     
-                    story.append(table)
+                    # Create a KeepTogether container to prevent page breaks within a kitchen section
+                    kitchen_elements = [table]
                     
                     # Calculate grand total
                     grand_total = 0
                     for row in kitchen_report_data:
-                        if row[4] and row[4].startswith('₹'):
+                        if row[4] and row[4].strip():
                             try:
-                                grand_total += float(row[4][1:])
+                                grand_total += float(row[4])
                             except (ValueError, TypeError):
                                 pass
                     
                     # Add summary with grand total
-                    story.append(Spacer(1, 20))
                     total_items = len(kitchen_report_data)
-                    summary_text = f"Total Items: {total_items} | Grand Total: ₹{grand_total:.2f}"
-                    story.append(Paragraph(summary_text, summary_style))
+                    summary_text = f"Total Items: {total_items} | Grand Total: {grand_total:.2f}"
+                    summary = Paragraph(summary_text, summary_style)
+                    kitchen_elements.append(Spacer(1, 20))
+                    kitchen_elements.append(summary)
+                    
+                    # Add all kitchen elements as a single KeepTogether unit
+                    story.append(KeepTogether(kitchen_elements))
                 else:
                     story.append(Paragraph("No items with quantities found for this kitchen.", no_data_style))
             
@@ -288,8 +293,8 @@ def create_kitchen_bills_preview(df, selected_date):
                             try:
                                 price_float = float(price)
                                 total = price_float * total_qty
-                                total = f"₹{total:.2f}"
-                                price = f"₹{price_float:.2f}"
+                                total = f"{total:.2f}"
+                                price = f"{price_float:.2f}"
                             except (ValueError, TypeError):
                                 pass
                         
@@ -311,15 +316,15 @@ def create_kitchen_bills_preview(df, selected_date):
                     # Calculate grand total
                     grand_total = 0
                     for item in kitchen_report_data:
-                        if item['TOTAL'] and item['TOTAL'].startswith('₹'):
+                        if item['TOTAL'] and item['TOTAL'].strip():
                             try:
-                                grand_total += float(item['TOTAL'][1:])
+                                grand_total += float(item['TOTAL'])
                             except (ValueError, TypeError):
                                 pass
                     
                     hotel_kitchens[kitchen] = {
                         'data': kitchen_df,
-                        'grand_total': f"₹{grand_total:.2f}"
+                        'grand_total': f"{grand_total:.2f}"
                     }
         
         if hotel_kitchens:
