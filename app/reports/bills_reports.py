@@ -74,9 +74,9 @@ def create_kitchen_bills_pdf(df, selected_date):
     )
     
     # Group data by hotel and kitchen
-    if 'KITCHEN' not in df.columns:
-        # If KITCHEN column doesn't exist, use MAIN HOTEL NAME as kitchen
-        df['KITCHEN'] = df['MAIN HOTEL NAME']
+    if 'KITCHEN NAME' not in df.columns:
+        # If KITCHEN NAME column doesn't exist, use MAIN HOTEL NAME as kitchen
+        df['KITCHEN NAME'] = df['MAIN HOTEL NAME']
     
     # Get unique hotels
     hotels = sorted(df['MAIN HOTEL NAME'].unique())
@@ -86,7 +86,7 @@ def create_kitchen_bills_pdf(df, selected_date):
         hotel_data = df[df['MAIN HOTEL NAME'] == hotel]
         
         # Get unique kitchens for this hotel
-        kitchens = sorted(hotel_data['KITCHEN'].unique())
+        kitchens = sorted(hotel_data['KITCHEN NAME'].unique())
         
         # Add hotel title
         hotel_title = Paragraph(f"Hotel: {hotel}", title_style)
@@ -95,7 +95,7 @@ def create_kitchen_bills_pdf(df, selected_date):
         
         # Process each kitchen
         for kitchen_idx, kitchen in enumerate(kitchens):
-            kitchen_data = hotel_data[hotel_data['KITCHEN'] == kitchen]
+            kitchen_data = hotel_data[hotel_data['KITCHEN NAME'] == kitchen]
             
             # Add kitchen title
             kitchen_title = Paragraph(f"Kitchen: {kitchen}", kitchen_title_style)
@@ -227,9 +227,9 @@ def create_kitchen_bills_preview(df, selected_date):
         return None
     
     # Group data by hotel and kitchen
-    if 'KITCHEN' not in df.columns:
-        # If KITCHEN column doesn't exist, use MAIN HOTEL NAME as kitchen
-        df['KITCHEN'] = df['MAIN HOTEL NAME']
+    if 'KITCHEN NAME' not in df.columns:
+        # If KITCHEN NAME column doesn't exist, use MAIN HOTEL NAME as kitchen
+        df['KITCHEN NAME'] = df['MAIN HOTEL NAME']
     
     # Get unique hotels
     hotels = sorted(df['MAIN HOTEL NAME'].unique())
@@ -242,13 +242,13 @@ def create_kitchen_bills_preview(df, selected_date):
         hotel_data = df[df['MAIN HOTEL NAME'] == hotel]
         
         # Get unique kitchens for this hotel
-        kitchens = sorted(hotel_data['KITCHEN'].unique())
+        kitchens = sorted(hotel_data['KITCHEN NAME'].unique())
         
         hotel_kitchens = {}
         
         # Process each kitchen
         for kitchen in kitchens:
-            kitchen_data = hotel_data[hotel_data['KITCHEN'] == kitchen]
+            kitchen_data = hotel_data[hotel_data['KITCHEN NAME'] == kitchen]
             
             if not kitchen_data.empty:
                 # Group by vegetable and sum quantities (handling multiple units)
