@@ -11,6 +11,7 @@ from database.mongodb import push_data_to_mongodb, get_vegetable_prices, save_ve
 from reports.individual_reports import create_individual_hotel_reports_pdf
 from reports.combined_reports import create_combined_report_pdf
 from reports.bills_reports import create_kitchen_bills_pdf, create_kitchen_bills_preview
+from reports.hotel_summary import create_hotel_summary_pdf
 
 def check_password():
     """Simple password authentication"""
@@ -268,6 +269,43 @@ def main():
             # Display filtered data
             st.subheader("Filtered Data")
             st.dataframe(df_filtered, use_container_width=True, height=400)
+            
+            # Hotel summary section
+            if not df_filtered.empty and 'MAIN HOTEL NAME' in df_filtered.columns:
+                st.subheader("Hotel Summaries")
+                st.write("Download summary PDF with date, hotel name, and total amount:")
+                
+                # Get unique hotels
+                unique_hotels = sorted(df_filtered['MAIN HOTEL NAME'].unique())
+                
+                # Create a grid of download buttons (3 per row)
+                cols = st.columns(3)
+                
+                for i, hotel in enumerate(unique_hotels):
+                    with cols[i % 3]:
+                        # Filter data for this hotel
+                        hotel_data = df_filtered[df_filtered['MAIN HOTEL NAME'] == hotel]
+                        
+                        if not hotel_data.empty:
+                            # Get the date for the summary
+                            if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+                                # If date range, use the end date
+                                summary_date = end_date
+                            else:
+                                # If single date, use that date
+                                summary_date = selected_date_range
+                            
+                            # Create hotel summary PDF
+                            hotel_summary_buffer = create_hotel_summary_pdf(hotel_data, summary_date, hotel)
+                            
+                            if hotel_summary_buffer:
+                                st.download_button(
+                                    label=f"📥 {hotel} Summary",
+                                    data=hotel_summary_buffer.getvalue(),
+                                    file_name=f"{hotel}_summary_{summary_date.strftime('%Y%m%d')}.pdf",
+                                    mime="application/pdf",
+                                    help=f"Download summary PDF for {hotel} showing date and total amount"
+                                )
             
             # Show column info
             with st.expander("📊 Column Information"):
