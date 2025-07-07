@@ -289,22 +289,28 @@ def main():
                         if not hotel_data.empty:
                             # Get the date for the summary
                             if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-                                # If date range, use the end date
-                                summary_date = end_date
+                                # Use the full date range
+                                date_range = selected_date_range
                             else:
                                 # If single date, use that date
-                                summary_date = selected_date_range
+                                date_range = selected_date_range
                             
                             # Create hotel summary PDF
-                            hotel_summary_buffer = create_hotel_summary_pdf(hotel_data, summary_date, hotel)
+                            hotel_summary_buffer = create_hotel_summary_pdf(hotel_data, date_range, hotel)
                             
                             if hotel_summary_buffer:
+                                # Determine file name based on date range
+                                if isinstance(date_range, tuple) and len(date_range) == 2:
+                                    file_name = f"{hotel}_summary_{date_range[0].strftime('%Y%m%d')}_to_{date_range[1].strftime('%Y%m%d')}.pdf"
+                                else:
+                                    file_name = f"{hotel}_summary_{date_range.strftime('%Y%m%d')}.pdf"
+                                
                                 st.download_button(
                                     label=f"📥 {hotel} Summary",
                                     data=hotel_summary_buffer.getvalue(),
-                                    file_name=f"{hotel}_summary_{summary_date.strftime('%Y%m%d')}.pdf",
+                                    file_name=file_name,
                                     mime="application/pdf",
-                                    help=f"Download summary PDF for {hotel} showing date and total amount"
+                                    help=f"Download summary PDF for {hotel} showing daily totals and grand total"
                                 )
             
             # Show column info
