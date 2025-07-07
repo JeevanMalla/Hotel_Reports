@@ -97,12 +97,14 @@ def create_kitchen_bills_pdf(df, selected_date):
         for kitchen_idx, kitchen in enumerate(kitchens):
             kitchen_data = hotel_data[hotel_data['KITCHEN NAME'] == kitchen]
             
-            # Add kitchen title
+            # Create kitchen title
             kitchen_title = Paragraph(f"Kitchen: {kitchen}", kitchen_title_style)
-            story.append(kitchen_title)
+            
+            # Create a list to hold all kitchen elements that should stay together
+            kitchen_elements = [kitchen_title, Spacer(1, 10)]
             
             if kitchen_data.empty:
-                story.append(Paragraph("No orders found for this kitchen on the selected date.", no_data_style))
+                kitchen_elements.append(Paragraph("No orders found for this kitchen on the selected date.", no_data_style))
             else:
                 # Group by vegetable and sum quantities (handling multiple units)
                 kitchen_report_data = []
@@ -186,8 +188,8 @@ def create_kitchen_bills_pdf(df, selected_date):
                         ('ALIGN', (2, 1), (4, -1), 'RIGHT'),  # Right align quantity, price and total columns
                     ]))
                     
-                    # Create a KeepTogether container to prevent page breaks within a kitchen section
-                    kitchen_elements = [table]
+                    # Add table to kitchen elements
+                    kitchen_elements.append(table)
                     
                     # Calculate grand total
                     grand_total = 0
@@ -208,7 +210,8 @@ def create_kitchen_bills_pdf(df, selected_date):
                     # Add all kitchen elements as a single KeepTogether unit
                     story.append(KeepTogether(kitchen_elements))
                 else:
-                    story.append(Paragraph("No items with quantities found for this kitchen.", no_data_style))
+                    kitchen_elements.append(Paragraph("No items with quantities found for this kitchen.", no_data_style))
+                    story.append(KeepTogether(kitchen_elements))
             
             # Add spacer between kitchens
             story.append(Spacer(1, 20))
