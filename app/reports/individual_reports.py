@@ -203,10 +203,14 @@ def create_individual_hotel_reports_pdf(df, selected_date):
         else:
             display_name = veg_name
         
+        # Calculate total quantity for this vegetable-unit combination across all hotels
+        total_qty = df[(df['PIVOT_VEGETABLE_NAME'] == veg_name) & (df['UNITS'] == units)]['QUANTITY'].sum()
+        
         all_veg_data.append([
             display_name,
             telugu_name if telugu_name and str(telugu_name) != 'nan' else '',
             units,
+            f"{total_qty:.2f}",  # Total quantity column
             ""  # Empty actual price column for manual entry
         ])
     
@@ -215,11 +219,11 @@ def create_individual_hotel_reports_pdf(df, selected_date):
     
     if all_veg_data:
         # Create table
-        price_table_data = [['Vegetable Name', 'Telugu Name', 'Units', 'Actual Price']]
+        price_table_data = [['Vegetable Name', 'Telugu Name', 'Units', 'Total Quantity', 'Actual Price']]
         price_table_data.extend(all_veg_data)
         
         # Calculate column widths for price table - adjusted to fit more content
-        col_widths = [1.8*inch, 1.8*inch, 0.8*inch, 2.1*inch]
+        col_widths = [1.6*inch, 1.6*inch, 0.7*inch, 1.0*inch, 1.6*inch]
         
         # Adjust font size based on number of items to fit on one page
         font_size = 10
