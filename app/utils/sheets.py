@@ -65,9 +65,7 @@ def update_google_sheets_prices(prices_data, selected_date):
     """Update actual prices in Google Sheets"""
     try:
         # Authenticate with Google Sheets API
-        credentials = Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES
-        )
+        credentials = service_account.Credentials.from_service_account_info(st.secrets["google_service_account"],scopes=SCOPES)
         service = build('sheets', 'v4', credentials=credentials)
         sheet = service.spreadsheets()
         
