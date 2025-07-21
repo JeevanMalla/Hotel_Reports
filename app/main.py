@@ -49,7 +49,7 @@ def main():
     
     # Sidebar for navigation
     st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Choose a page:", ["Home", "Data Preview", "Price Management", "Bills", "Image/Text to Order"])
+    page = st.sidebar.selectbox("Choose a page:", ["Home", "Data Preview", "Price Management", "Bills", "Edit Bill", "Image/Text to Order"])
     
     if page == "Home":
         st.header("Generate Reports")
@@ -460,6 +460,55 @@ def main():
             st.warning(f"No data found for date: {selected_date}")
 
     elif page == "Bills":
+        st.header("🧾 Kitchen Bills")
+        # Date selector and Fetch Data button in the same row
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            selected_date = st.date_input(
+                "Select Date:",
+                value=datetime.now().date(),
+                help="Select the date for which you want to view kitchen bills"
+            )
+        with col2:
+            fetch_data = st.button("🔄 Fetch Latest Data", help="Refresh data from Google Sheets")
+            if fetch_data:
+                st.cache_data.clear()
+                st.success("Data refreshed from Google Sheets!")
+                st.rerun()
+        # Get data
+        with st.spinner("Loading data..."):
+            df = get_google_sheets_data()
+            filtered_df, _ = process_data_for_date(df, selected_date)
+            if filtered_df.empty:
+                st.warning(f"No data found for date: {selected_date.strftime('%Y-%m-%d')}")
+            else:
+                # Generate kitchen bills preview
+                kitchen_bills_preview = create_kitchen_bills_preview(filtered_df, selected_date)
+                if kitchen_bills_preview:
+                    # Generate PDF for download
+                    kitchen_bills_pdf_buffer = create_kitchen_bills_pdf(filtered_df, selected_date)
+                    # Download button
+                    if kitchen_bills_pdf_buffer:
+                        st.download_button(
+                            label="📥 Download Kitchen Bills PDF",
+                            data=kitchen_bills_pdf_buffer.getvalue(),
+                            file_name=f"kitchen_bills_{selected_date.strftime('%Y%m%d')}.pdf",
+                            mime="application/pdf",
+                            help="Download bills for each kitchen sorted alphabetically by vegetable name"
+                        )
+                    # Display preview
+                    st.subheader("Bills Preview")
+                    # Display each hotel and its kitchens
+                    for hotel, kitchens in kitchen_bills_preview.items():
+                        with st.expander(f"Hotel: {hotel}", expanded=True):
+                            for kitchen, kitchen_data in kitchens.items():
+                                st.markdown(f"#### Kitchen: {kitchen}")
+                                st.dataframe(kitchen_data['data'], use_container_width=True)
+                                st.markdown(f"**Grand Total: {kitchen_data['grand_total']}**")
+                                st.markdown("---")
+                else:
+                    st.warning("No kitchen bills data available for the selected date.")
+    elif page == "Edit Bill":
         show_editable_bills_section()
 
     elif page == "Image/Text to Order":
