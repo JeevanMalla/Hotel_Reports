@@ -67,9 +67,13 @@ def show_editable_bills_section():
                 st.markdown("**Bill Preview (after edit):**")
                 preview = create_kitchen_bills_preview(edited_df, selected_date)
                 if preview and selected_hotel in preview and kitchen in preview[selected_hotel]:
-                    bill_data = preview[selected_hotel][kitchen]['data'][['Vegetable Name', 'Telugu Name', 'Quantity', 'TOTAL']]
+                    bill_data = preview[selected_hotel][kitchen]['data']
+                    # Only show columns that exist
+                    preview_cols = ['Vegetable Name', 'Telugu Name', 'Quantity', 'TOTAL']
+                    available_cols = [col for col in preview_cols if col in bill_data.columns]
+                    bill_data_display = bill_data[available_cols]
                     grand_total = preview[selected_hotel][kitchen]['grand_total']
-                    st.dataframe(bill_data, use_container_width=True)
+                    st.dataframe(bill_data_display, use_container_width=True)
                     st.markdown(f"**Grand Total Amount: {grand_total}**")
                     # Download as PDF
                     if st.button(f"Download {kitchen} Bill as PDF", key=f"pdf_{kitchen}"):
