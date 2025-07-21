@@ -67,33 +67,58 @@ def show_editable_bills_section():
                         changed_row['DATE'] = selected_date.strftime('%Y-%m-%d')
                         changed_rows.append(changed_row)
                 all_changes.extend(changed_rows)
-                # Show bill preview (essential columns only)
+                # Bill Preview (match main bill module logic)
                 st.markdown("**Bill Preview (after edit):**")
-                preview = create_kitchen_bills_preview(edited_df, selected_date)
-                if preview and selected_hotel in preview and kitchen in preview[selected_hotel]:
-                    bill_data = preview[selected_hotel][kitchen]['data']
-                    # Only show columns that exist
-                    preview_cols = ['Vegetable Name', 'Telugu Name', 'Quantity', 'TOTAL']
-                    available_cols = [col for col in preview_cols if col in bill_data.columns]
-                    bill_data_display = bill_data[available_cols]
-                    grand_total = preview[selected_hotel][kitchen]['grand_total']
-                    st.dataframe(bill_data_display, use_container_width=True)
-                    st.markdown(f"**Grand Total Amount: {grand_total}**")
-                    # Download as PDF
-                    if st.button(f"Download {kitchen} Bill as PDF", key=f"pdf_{kitchen}"):
-                        pdf_buffer = create_kitchen_bills_pdf(edited_df, selected_date)
-                        if pdf_buffer:
-                            st.download_button(
-                                label=f"Download {kitchen} Bill as PDF",
-                                data=pdf_buffer.getvalue(),
-                                file_name=f"{selected_hotel}_{kitchen}_bill_{selected_date.strftime('%Y%m%d')}.pdf",
-                                mime="application/pdf",
-                                use_container_width=True
-                            )
-                        else:
-                            st.warning("PDF generation failed.")
+                # Group by vegetable/unit, sum quantities, and show columns as in main bill
+                grouped = (
+                    edited_df.groupby(['PIVOT_VEGETABLE_NAME', 'UNITS', 'TELUGU NAME'], dropna=False)
+                    .agg({'QUANTITY': 'sum'})
+                    .reset_index()
+                )
+                # If PRICE exists, use it; else, fill with blank
+                if 'PRICE' in kitchen_df.columns:
+                    price_map = kitchen_df.set_index(['PIVOT_VEGETABLE_NAME', 'UNITS'])['PRICE'].to_dict()
+                    grouped['PRICE'] = grouped.apply(lambda row: price_map.get((row['PIVOT_VEGETABLE_NAME'], row['UNITS']), ''), axis=1)
                 else:
-                    st.info("No bill data available after edit.")
+                    grouped['PRICE'] = ''
+                # Calculate TOTAL if price is available
+                def calc_total(row):
+                    try:
+                        return f"{float(row['PRICE']) * float(row['QUANTITY']):.2f}" if row['PRICE'] and str(row['PRICE']).strip() else ''
+                    except:
+                        return ''
+                grouped['TOTAL'] = grouped.apply(calc_total, axis=1)
+                # Format columns for display
+                grouped['Quantity'] = grouped['QUANTITY'].astype(str) + ' ' + grouped['UNITS'].astype(str)
+                display_cols = ['PIVOT_VEGETABLE_NAME', 'TELUGU NAME', 'Quantity', 'PRICE', 'TOTAL']
+                display_df = grouped[display_cols].rename(columns={
+                    'PIVOT_VEGETABLE_NAME': 'Vegetable Name',
+                    'TELUGU NAME': 'Telugu Name'
+                })
+                st.dataframe(display_df, use_container_width=True)
+                # Show summary
+                total_items = len(display_df)
+                grand_total = 0
+                for t in display_df['TOTAL']:
+                    try:
+                        if t and str(t).strip():
+                            grand_total += float(t)
+                    except:
+                        pass
+                st.markdown(f"**Total Items: {total_items} | Grand Total: {grand_total:.2f}**")
+                # Download as PDF
+                if st.button(f"Download {kitchen} Bill as PDF", key=f"pdf_{kitchen}"):
+                    pdf_buffer = create_kitchen_bills_pdf(edited_df, selected_date)
+                    if pdf_buffer:
+                        st.download_button(
+                            label=f"Download {kitchen} Bill as PDF",
+                            data=pdf_buffer.getvalue(),
+                            file_name=f"{selected_hotel}_{kitchen}_bill_{selected_date.strftime('%Y%m%d')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.warning("PDF generation failed.")
                 all_kitchen_edits.append(edited_df)
             # Save all changed rows to a new sheet 'change' in Google Sheets
             if all_changes:
