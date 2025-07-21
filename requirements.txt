@@ -6,3 +6,4 @@ google-api-python-client>=2.66.0
 reportlab>=3.6.0
 numpy>=1.21.0
 pymongo>=4.3.0
+Groq    
