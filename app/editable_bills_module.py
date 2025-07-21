@@ -20,7 +20,7 @@ def show_editable_bills_section():
     today = datetime.now().date()
     col1, col2 = st.columns(2)
     with col1:
-        selected_date = st.date_input("Select Date", value=today)
+        selected_date = st.date_input("Select Date", value=today, key="edit_bill_date")
     with col2:
         df = get_google_sheets_data()
         hotels = sorted(df['MAIN HOTEL NAME'].unique()) if not df.empty else []

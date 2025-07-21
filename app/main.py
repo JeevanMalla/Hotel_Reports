@@ -467,7 +467,8 @@ def main():
             selected_date = st.date_input(
                 "Select Date:",
                 value=datetime.now().date(),
-                help="Select the date for which you want to view kitchen bills"
+                help="Select the date for which you want to view kitchen bills",
+                key="bills_date"
             )
         with col2:
             fetch_data = st.button("🔄 Fetch Latest Data", help="Refresh data from Google Sheets")
