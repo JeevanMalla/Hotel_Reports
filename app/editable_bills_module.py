@@ -51,6 +51,10 @@ def show_editable_bills_section():
                 edited_df['MAIN HOTEL NAME'] = selected_hotel
                 edited_df['KITCHEN NAME'] = kitchen
                 edited_df['DATE'] = selected_date
+                # Ensure required columns for preview/PDF
+                for col in ['PIVOT_VEGETABLE_NAME', 'UNITS', 'TELUGU NAME']:
+                    if col not in edited_df.columns:
+                        edited_df[col] = ''
                 # Find changed rows
                 changed_rows = []
                 for idx, row in edited_df.iterrows():
