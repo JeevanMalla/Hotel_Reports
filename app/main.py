@@ -12,6 +12,7 @@ from reports.individual_reports import create_individual_hotel_reports_pdf
 from reports.combined_reports import create_combined_report_pdf
 from reports.bills_reports import create_kitchen_bills_pdf, create_kitchen_bills_preview
 from reports.hotel_summary import create_hotel_summary_pdf
+from img_to_txt_module import image_txt_to_order_ui
 
 def check_password():
     """Simple password authentication"""
@@ -47,7 +48,7 @@ def main():
     
     # Sidebar for navigation
     st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Choose a page:", ["Home", "Data Preview", "Price Management", "Bills"])
+    page = st.sidebar.selectbox("Choose a page:", ["Home", "Data Preview", "Price Management", "Bills", "Image/Text to Order"])
     
     if page == "Home":
         st.header("Generate Reports")
@@ -117,7 +118,7 @@ def main():
                                     st.error(message)
                         
                         # PDF download buttons
-                        st.markdown("### 📥 Download Reports")
+                        st.markdown("### �� Download Reports")
                         
                         # Create three columns for download buttons
                         col1, col2, col3 = st.columns(3)
@@ -514,6 +515,9 @@ def main():
                                 st.markdown("---")
                 else:
                     st.warning("No kitchen bills data available for the selected date.")
+
+    elif page == "Image/Text to Order":
+        image_txt_to_order_ui()
 
 def generate_reports(df, selected_date):
     """Generate all reports for the selected date"""
