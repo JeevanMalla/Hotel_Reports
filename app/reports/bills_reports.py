@@ -364,35 +364,29 @@ filtered_df, _ = process_data_for_date(df, selected_date)
 if not filtered_df.empty:
     bills_df = filtered_df[(filtered_df['MAIN HOTEL NAME'] == selected_hotel) & (filtered_df['KITCHEN NAME'] == selected_kitchen)]
     if not bills_df.empty:
+        # Prepare editable table for st.data_editor
+        edit_df = bills_df[['PIVOT_VEGETABLE_NAME', 'UNITS', 'QUANTITY']].copy().reset_index(drop=True)
         veg_options = sorted(bills_df['PIVOT_VEGETABLE_NAME'].unique())
-        # Use session state for persistent edits
-        if 'bills_edit_df' not in st.session_state or st.session_state.get('bills_edit_df_key') != f"{selected_date}_{selected_hotel}_{selected_kitchen}":
-            edit_df = bills_df[['PIVOT_VEGETABLE_NAME', 'UNITS', 'QUANTITY']].copy().reset_index(drop=True)
-            edit_df['New Vegetable Name'] = edit_df['PIVOT_VEGETABLE_NAME']
-            edit_df['New Quantity'] = edit_df['QUANTITY']
-            st.session_state['bills_edit_df'] = edit_df
-            st.session_state['bills_edit_df_key'] = f"{selected_date}_{selected_hotel}_{selected_kitchen}"
-        else:
-            edit_df = st.session_state['bills_edit_df']
-        st.write("Edit the vegetable name and quantity below:")
-        for idx in edit_df.index:
-            c1, c2, c3 = st.columns([3,2,2])
-            with c1:
-                current_veg = edit_df.at[idx, 'New Vegetable Name']
-                default_idx = veg_options.index(current_veg) if current_veg in veg_options else 0
-                edit_df.at[idx, 'New Vegetable Name'] = st.selectbox(f"Vegetable {idx+1}", veg_options, index=default_idx, key=f"bills_veg_{idx}")
-            with c2:
-                edit_df.at[idx, 'New Quantity'] = st.number_input(f"Quantity {idx+1}", min_value=0.0, value=float(edit_df.at[idx, 'New Quantity']), key=f"bills_qty_{idx}")
-            with c3:
-                st.text(edit_df.at[idx, 'UNITS'])
+        st.write("Edit the vegetable name and quantity below (directly in the table):")
+        edited_df = st.data_editor(
+            edit_df,
+            column_config={
+                "PIVOT_VEGETABLE_NAME": st.column_config.SelectboxColumn(
+                    "Vegetable Name", options=veg_options, required=True
+                ),
+                "QUANTITY": st.column_config.NumberColumn("Quantity", min_value=0.0, required=True),
+            },
+            num_rows="dynamic",
+            use_container_width=True
+        )
         # Save button
         if st.button("Save Changes", key="bills_save_edits"):
             changes = []
-            for idx, row in edit_df.iterrows():
+            for idx, row in edited_df.iterrows():
                 orig_name = bills_df.iloc[idx]['PIVOT_VEGETABLE_NAME']
                 orig_qty = bills_df.iloc[idx]['QUANTITY']
-                new_name = row['New Vegetable Name']
-                new_qty = row['New Quantity']
+                new_name = row['PIVOT_VEGETABLE_NAME']
+                new_qty = row['QUANTITY']
                 if orig_name != new_name or orig_qty != new_qty:
                     diff = new_qty - orig_qty
                     changes.append({
@@ -405,7 +399,6 @@ if not filtered_df.empty:
                         'OLD_QUANTITY': orig_qty,
                         'NEW_QUANTITY': new_qty
                     })
-            st.session_state['bills_edit_df'] = edit_df.copy()
             if changes:
                 try:
                     SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -446,11 +439,9 @@ if not filtered_df.empty:
                 st.info("No changes to save.")
         # Show the edited table
         st.subheader("Edited Table (Current Session)")
-        st.dataframe(edit_df[['New Vegetable Name', 'UNITS', 'New Quantity']], use_container_width=True)
+        st.dataframe(edited_df, use_container_width=True)
         # Reset button
         if st.button("Reset Edits", key="bills_reset_edits"):
-            del st.session_state['bills_edit_df']
-            del st.session_state['bills_edit_df_key']
             st.experimental_rerun()
     else:
         st.info("No bills found for this hotel and kitchen on the selected date.")
