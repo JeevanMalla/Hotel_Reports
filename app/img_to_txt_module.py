@@ -297,36 +297,27 @@ def image_txt_to_order_ui():
         )
         # Get valid vegetable options for dropdown
         veg_options = get_vegetable_names_by_hotel(hotel_name)
-        # Prepare editable table
         edit_df = df.copy().reset_index(drop=True)
-        edit_df['New Vegetable Name'] = edit_df['PIVOT_VEGETABLE_NAME']
-        edit_df['New Quantity'] = edit_df['QUANTITY']
-        st.write("Edit the vegetable name and quantity below:")
-        for idx in edit_df.index:
-            c1, c2, c3 = st.columns([3,2,2])
-            with c1:
-                if veg_options:
-                    current_veg = edit_df.at[idx, 'PIVOT_VEGETABLE_NAME']
-                    default_idx = veg_options.index(current_veg) if current_veg in veg_options else 0
-                    edit_df.at[idx, 'New Vegetable Name'] = st.selectbox(f"Vegetable {idx+1}", veg_options, index=default_idx, key=f"imgtxt_veg_{idx}")
-                else:
-                    edit_df.at[idx, 'New Vegetable Name'] = st.text_input(f"Vegetable {idx+1}", edit_df.at[idx, 'PIVOT_VEGETABLE_NAME'], key=f"imgtxt_veg_{idx}")
-            with c2:
-                edit_df.at[idx, 'New Quantity'] = st.number_input(f"Quantity {idx+1}", min_value=0.0, value=float(edit_df.at[idx, 'QUANTITY']), key=f"imgtxt_qty_{idx}")
-            with c3:
-                st.text(edit_df.at[idx, 'KITCHEN_NAME'])
-        # Save button
+        st.write("Edit the vegetable name and quantity below (directly in the table):")
+        edited_df = st.data_editor(
+            edit_df,
+            column_config={
+                "PIVOT_VEGETABLE_NAME": st.column_config.SelectboxColumn(
+                    "Vegetable Name", options=veg_options, required=True
+                ),
+                "QUANTITY": st.column_config.NumberColumn("Quantity", min_value=0.0, required=True),
+            },
+            num_rows="dynamic",
+            use_container_width=True
+        )
         if st.button("Save Edits", key="imgtxt_save_edits"):
-            # Update the DataFrame with new values
-            for idx in edit_df.index:
-                edit_df.at[idx, 'PIVOT_VEGETABLE_NAME'] = edit_df.at[idx, 'New Vegetable Name']
-                edit_df.at[idx, 'QUANTITY'] = edit_df.at[idx, 'New Quantity']
+            st.session_state['imgtxt_edited_df'] = edited_df.copy()
             st.success("Edits saved. You can now export or download the updated data.")
         # Show the edited DataFrame
         st.subheader("📋 Final Data for Export (with Common Names)")
-        st.dataframe(edit_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']], use_container_width=True)
-        total_items = len(edit_df)
-        total_quantity = edit_df['QUANTITY'].sum()
+        st.dataframe(edited_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']], use_container_width=True)
+        total_items = len(edited_df)
+        total_quantity = edited_df['QUANTITY'].sum()
         col1, col2 = st.columns(2)
         with col1:
             st.metric("📦 Total Items", total_items)
@@ -337,20 +328,20 @@ def image_txt_to_order_ui():
             if st.button("📊 Export to MongoDB", use_container_width=True):
                 try:
                     audit_collection = db["audits"]
-                    records = edit_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']].to_dict("records")
+                    records = edited_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']].to_dict("records")
                     audit_collection.insert_many(records)
                     st.success("✅ Data exported to MongoDB successfully!")
                 except Exception as e:
                     st.error(f"❌ Failed to export to MongoDB: {e}")
         with col2:
             if st.button("📈 Export to Google Sheets", use_container_width=True):
-                success, message = append_to_google_sheets_batch(edit_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']])
+                success, message = append_to_google_sheets_batch(edited_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']])
                 if success:
                     st.success(f"✅ {message}")
                 else:
                     st.error(f"❌ {message}")
         with col3:
-            csv = edit_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']].to_csv(index=False)
+            csv = edited_df[['DATE', 'MAIN_HOTEL_NAME', 'KITCHEN_NAME', 'PIVOT_VEGETABLE_NAME', 'QUANTITY']].to_csv(index=False)
             st.download_button(
                 label="📥 Download CSV",
                 data=csv,
