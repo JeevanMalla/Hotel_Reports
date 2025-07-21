@@ -6,6 +6,12 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepTogether
 from reportlab.lib.units import inch
 import streamlit as st
+import pandas as pd
+from datetime import datetime
+from utils.sheets import get_google_sheets_data
+from utils.data_processing import process_data_for_date
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
 
 # Register Telugu font if needed
 try:
@@ -334,3 +340,111 @@ def create_kitchen_bills_preview(df, selected_date):
             preview_data[hotel] = hotel_kitchens
     
     return preview_data
+
+# --- Streamlit Editable Bills Section ---
+st.header("📝 Editable Bills Section")
+
+# Select date, hotel, kitchen
+today = datetime.now().date()
+col1, col2, col3 = st.columns(3)
+with col1:
+    selected_date = st.date_input("Select Date", value=today)
+with col2:
+    df = get_google_sheets_data()
+    hotels = sorted(df['MAIN HOTEL NAME'].unique()) if not df.empty else []
+    selected_hotel = st.selectbox("Select Hotel", hotels)
+with col3:
+    kitchens = []
+    if not df.empty and selected_hotel:
+        kitchens = sorted(df[df['MAIN HOTEL NAME'] == selected_hotel]['KITCHEN NAME'].unique())
+    selected_kitchen = st.selectbox("Select Kitchen", kitchens)
+
+# Filter data for selection
+filtered_df, _ = process_data_for_date(df, selected_date)
+if not filtered_df.empty:
+    bills_df = filtered_df[(filtered_df['MAIN HOTEL NAME'] == selected_hotel) & (filtered_df['KITCHEN NAME'] == selected_kitchen)]
+    if not bills_df.empty:
+        # Get valid vegetables for dropdown
+        veg_options = sorted(bills_df['PIVOT_VEGETABLE_NAME'].unique())
+        # Prepare editable table
+        edit_df = bills_df[['PIVOT_VEGETABLE_NAME', 'UNITS', 'QUANTITY']].copy().reset_index(drop=True)
+        edit_df['New Vegetable Name'] = edit_df['PIVOT_VEGETABLE_NAME']
+        edit_df['New Quantity'] = edit_df['QUANTITY']
+        # Show editable table
+        st.write("Edit the vegetable name and quantity below:")
+        for idx in edit_df.index:
+            c1, c2, c3 = st.columns([3,2,2])
+            with c1:
+                edit_df.at[idx, 'New Vegetable Name'] = st.selectbox(f"Vegetable {idx+1}", veg_options, index=veg_options.index(edit_df.at[idx, 'PIVOT_VEGETABLE_NAME']), key=f"veg_{idx}")
+            with c2:
+                edit_df.at[idx, 'New Quantity'] = st.number_input(f"Quantity {idx+1}", min_value=0.0, value=float(edit_df.at[idx, 'QUANTITY']), key=f"qty_{idx}")
+            with c3:
+                st.text(edit_df.at[idx, 'UNITS'])
+        # Save button
+        if st.button("Save Changes"):
+            changes = []
+            for idx, row in edit_df.iterrows():
+                orig_name = bills_df.iloc[idx]['PIVOT_VEGETABLE_NAME']
+                orig_qty = bills_df.iloc[idx]['QUANTITY']
+                new_name = row['New Vegetable Name']
+                new_qty = row['New Quantity']
+                if orig_name != new_name or orig_qty != new_qty:
+                    diff = new_qty - orig_qty
+                    changes.append({
+                        'DATE': selected_date.strftime('%Y-%m-%d'),
+                        'HOTEL': selected_hotel,
+                        'KITCHEN': selected_kitchen,
+                        'VEGETABLE': new_name,
+                        'UNITS': row['UNITS'],
+                        'DIFF_QUANTITY': diff,
+                        'OLD_QUANTITY': orig_qty,
+                        'NEW_QUANTITY': new_qty
+                    })
+            if changes:
+                # Save changes to a new sheet in Google Sheets
+                try:
+                    SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+                    SPREADSHEET_ID = st.secrets.general.id
+                    credentials = service_account.Credentials.from_service_account_info(st.secrets["google_service_account"],scopes=SCOPES)
+                    service = build('sheets', 'v4', credentials=credentials)
+                    sheet = service.spreadsheets()
+                    # Sheet name for edits
+                    edits_sheet = f"Edits_{selected_date.strftime('%Y%m%d')}"  # or just 'Edits'
+                    # Check if sheet exists
+                    sheets_metadata = sheet.get(spreadsheetId=SPREADSHEET_ID).execute()
+                    sheet_names = [s['properties']['title'] for s in sheets_metadata['sheets']]
+                    if edits_sheet not in sheet_names:
+                        # Create new sheet
+                        requests = [{
+                            'addSheet': {
+                                'properties': {'title': edits_sheet}
+                            }
+                        }]
+                        body = {'requests': requests}
+                        service.spreadsheets().batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
+                        # Add header row
+                        header = list(changes[0].keys())
+                        service.spreadsheets().values().update(
+                            spreadsheetId=SPREADSHEET_ID,
+                            range=f"{edits_sheet}!A1",
+                            valueInputOption='RAW',
+                            body={'values': [header]}
+                        ).execute()
+                    # Append changes
+                    values = [list(c.values()) for c in changes]
+                    service.spreadsheets().values().append(
+                        spreadsheetId=SPREADSHEET_ID,
+                        range=f"{edits_sheet}!A1",
+                        valueInputOption='RAW',
+                        insertDataOption='INSERT_ROWS',
+                        body={'values': values}
+                    ).execute()
+                    st.success(f"Saved {len(changes)} changes to Google Sheets ({edits_sheet})")
+                except Exception as e:
+                    st.error(f"Failed to save changes: {e}")
+            else:
+                st.info("No changes to save.")
+    else:
+        st.info("No bills found for this hotel and kitchen on the selected date.")
+else:
+    st.info("No data found for the selected date.")
