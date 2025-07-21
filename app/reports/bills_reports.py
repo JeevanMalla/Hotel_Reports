@@ -364,24 +364,29 @@ filtered_df, _ = process_data_for_date(df, selected_date)
 if not filtered_df.empty:
     bills_df = filtered_df[(filtered_df['MAIN HOTEL NAME'] == selected_hotel) & (filtered_df['KITCHEN NAME'] == selected_kitchen)]
     if not bills_df.empty:
-        # Get valid vegetables for dropdown
         veg_options = sorted(bills_df['PIVOT_VEGETABLE_NAME'].unique())
-        # Prepare editable table
-        edit_df = bills_df[['PIVOT_VEGETABLE_NAME', 'UNITS', 'QUANTITY']].copy().reset_index(drop=True)
-        edit_df['New Vegetable Name'] = edit_df['PIVOT_VEGETABLE_NAME']
-        edit_df['New Quantity'] = edit_df['QUANTITY']
-        # Show editable table
+        # Use session state for persistent edits
+        if 'bills_edit_df' not in st.session_state or st.session_state.get('bills_edit_df_key') != f"{selected_date}_{selected_hotel}_{selected_kitchen}":
+            edit_df = bills_df[['PIVOT_VEGETABLE_NAME', 'UNITS', 'QUANTITY']].copy().reset_index(drop=True)
+            edit_df['New Vegetable Name'] = edit_df['PIVOT_VEGETABLE_NAME']
+            edit_df['New Quantity'] = edit_df['QUANTITY']
+            st.session_state['bills_edit_df'] = edit_df
+            st.session_state['bills_edit_df_key'] = f"{selected_date}_{selected_hotel}_{selected_kitchen}"
+        else:
+            edit_df = st.session_state['bills_edit_df']
         st.write("Edit the vegetable name and quantity below:")
         for idx in edit_df.index:
             c1, c2, c3 = st.columns([3,2,2])
             with c1:
-                edit_df.at[idx, 'New Vegetable Name'] = st.selectbox(f"Vegetable {idx+1}", veg_options, index=veg_options.index(edit_df.at[idx, 'PIVOT_VEGETABLE_NAME']), key=f"veg_{idx}")
+                current_veg = edit_df.at[idx, 'New Vegetable Name']
+                default_idx = veg_options.index(current_veg) if current_veg in veg_options else 0
+                edit_df.at[idx, 'New Vegetable Name'] = st.selectbox(f"Vegetable {idx+1}", veg_options, index=default_idx, key=f"bills_veg_{idx}")
             with c2:
-                edit_df.at[idx, 'New Quantity'] = st.number_input(f"Quantity {idx+1}", min_value=0.0, value=float(edit_df.at[idx, 'QUANTITY']), key=f"qty_{idx}")
+                edit_df.at[idx, 'New Quantity'] = st.number_input(f"Quantity {idx+1}", min_value=0.0, value=float(edit_df.at[idx, 'New Quantity']), key=f"bills_qty_{idx}")
             with c3:
                 st.text(edit_df.at[idx, 'UNITS'])
         # Save button
-        if st.button("Save Changes"):
+        if st.button("Save Changes", key="bills_save_edits"):
             changes = []
             for idx, row in edit_df.iterrows():
                 orig_name = bills_df.iloc[idx]['PIVOT_VEGETABLE_NAME']
@@ -400,21 +405,18 @@ if not filtered_df.empty:
                         'OLD_QUANTITY': orig_qty,
                         'NEW_QUANTITY': new_qty
                     })
+            st.session_state['bills_edit_df'] = edit_df.copy()
             if changes:
-                # Save changes to a new sheet in Google Sheets
                 try:
                     SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
                     SPREADSHEET_ID = st.secrets.general.id
                     credentials = service_account.Credentials.from_service_account_info(st.secrets["google_service_account"],scopes=SCOPES)
                     service = build('sheets', 'v4', credentials=credentials)
                     sheet = service.spreadsheets()
-                    # Sheet name for edits
-                    edits_sheet = f"Edits_{selected_date.strftime('%Y%m%d')}"  # or just 'Edits'
-                    # Check if sheet exists
+                    edits_sheet = f"Edits_{selected_date.strftime('%Y%m%d')}"
                     sheets_metadata = sheet.get(spreadsheetId=SPREADSHEET_ID).execute()
                     sheet_names = [s['properties']['title'] for s in sheets_metadata['sheets']]
                     if edits_sheet not in sheet_names:
-                        # Create new sheet
                         requests = [{
                             'addSheet': {
                                 'properties': {'title': edits_sheet}
@@ -422,7 +424,6 @@ if not filtered_df.empty:
                         }]
                         body = {'requests': requests}
                         service.spreadsheets().batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
-                        # Add header row
                         header = list(changes[0].keys())
                         service.spreadsheets().values().update(
                             spreadsheetId=SPREADSHEET_ID,
@@ -430,7 +431,6 @@ if not filtered_df.empty:
                             valueInputOption='RAW',
                             body={'values': [header]}
                         ).execute()
-                    # Append changes
                     values = [list(c.values()) for c in changes]
                     service.spreadsheets().values().append(
                         spreadsheetId=SPREADSHEET_ID,
@@ -444,6 +444,14 @@ if not filtered_df.empty:
                     st.error(f"Failed to save changes: {e}")
             else:
                 st.info("No changes to save.")
+        # Show the edited table
+        st.subheader("Edited Table (Current Session)")
+        st.dataframe(edit_df[['New Vegetable Name', 'UNITS', 'New Quantity']], use_container_width=True)
+        # Reset button
+        if st.button("Reset Edits", key="bills_reset_edits"):
+            del st.session_state['bills_edit_df']
+            del st.session_state['bills_edit_df_key']
+            st.experimental_rerun()
     else:
         st.info("No bills found for this hotel and kitchen on the selected date.")
 else:
