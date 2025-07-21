@@ -159,18 +159,43 @@ def show_editable_bills_section():
                         main_df = main_df.reset_index().rename(columns={'index': 'ROW_NUMBER'})
                         save_rows = []
                         for changed in all_changes:
-                            # Find the matching row in the main sheet
+                            # Robust match: normalize all compared columns
+                            def norm(val):
+                                if pd.isnull(val):
+                                    return ''
+                                if isinstance(val, (int, float)):
+                                    return str(val)
+                                return str(val).strip().lower()
+                            def norm_date(val):
+                                try:
+                                    return pd.to_datetime(val).strftime('%Y-%m-%d')
+                                except:
+                                    return str(val)
+                            main_df['__MATCH_HOTEL'] = main_df['MAIN HOTEL NAME'].apply(norm)
+                            main_df['__MATCH_KITCHEN'] = main_df['KITCHEN NAME'].apply(norm)
+                            main_df['__MATCH_DATE'] = main_df['DATE'].apply(norm_date)
+                            main_df['__MATCH_VEG'] = main_df['PIVOT_VEGETABLE_NAME'].apply(norm)
+                            main_df['__MATCH_UNITS'] = main_df['UNITS'].apply(norm)
+                            ch_hotel = norm(changed['MAIN HOTEL NAME'])
+                            ch_kitchen = norm(changed['KITCHEN NAME'])
+                            ch_date = norm_date(changed['DATE'])
+                            ch_veg = norm(changed['PIVOT_VEGETABLE_NAME'])
+                            ch_units = norm(changed['UNITS'])
                             match = main_df[
-                                (main_df['MAIN HOTEL NAME'] == changed['MAIN HOTEL NAME']) &
-                                (main_df['KITCHEN NAME'] == changed['KITCHEN NAME']) &
-                                (main_df['DATE'] == changed['DATE']) &
-                                (main_df['PIVOT_VEGETABLE_NAME'] == changed['PIVOT_VEGETABLE_NAME']) &
-                                (main_df['UNITS'] == changed['UNITS'])
+                                (main_df['__MATCH_HOTEL'] == ch_hotel) &
+                                (main_df['__MATCH_KITCHEN'] == ch_kitchen) &
+                                (main_df['__MATCH_DATE'] == ch_date) &
+                                (main_df['__MATCH_VEG'] == ch_veg) &
+                                (main_df['__MATCH_UNITS'] == ch_units)
                             ]
                             if not match.empty:
                                 orig_row = match.iloc[0].to_dict()
                                 orig_row['Changed Quantity'] = changed['QUANTITY']
                                 save_rows.append(orig_row)
+                        # Remove temp columns
+                        for col in ['__MATCH_HOTEL', '__MATCH_KITCHEN', '__MATCH_DATE', '__MATCH_VEG', '__MATCH_UNITS']:
+                            if col in main_df.columns:
+                                main_df.drop(columns=[col], inplace=True)
                         if save_rows:
                             # Add header if new sheet
                             result = sheet.values().get(
