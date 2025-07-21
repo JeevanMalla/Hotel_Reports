@@ -47,6 +47,10 @@ def show_editable_bills_section():
                     use_container_width=True,
                     key=f"edit_{kitchen}"
                 )
+                # Add required columns for preview and PDF
+                edited_df['MAIN HOTEL NAME'] = selected_hotel
+                edited_df['KITCHEN NAME'] = kitchen
+                edited_df['DATE'] = selected_date
                 # Find changed rows
                 changed_rows = []
                 for idx, row in edited_df.iterrows():
