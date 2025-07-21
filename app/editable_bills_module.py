@@ -71,7 +71,7 @@ def show_editable_bills_section():
                 st.markdown("**Bill Preview (after edit):**")
                 # Group by vegetable/unit, sum quantities, and show columns as in main bill
                 grouped = (
-                    edited_df.groupby(['PIVOT_VEGETABLE_NAME', 'UNITS', 'TELUGU NAME'], dropna=False)
+                    edited_df.groupby(['PIVOT_VEGETABLE_NAME', 'UNITS'], dropna=False)
                     .agg({'QUANTITY': 'sum'})
                     .reset_index()
                 )
@@ -90,10 +90,9 @@ def show_editable_bills_section():
                 grouped['TOTAL'] = grouped.apply(calc_total, axis=1)
                 # Format columns for display
                 grouped['Quantity'] = grouped['QUANTITY'].astype(str) + ' ' + grouped['UNITS'].astype(str)
-                display_cols = ['PIVOT_VEGETABLE_NAME', 'TELUGU NAME', 'Quantity', 'PRICE', 'TOTAL']
+                display_cols = ['PIVOT_VEGETABLE_NAME', 'Quantity', 'PRICE', 'TOTAL']
                 display_df = grouped[display_cols].rename(columns={
-                    'PIVOT_VEGETABLE_NAME': 'Vegetable Name',
-                    'TELUGU NAME': 'Telugu Name'
+                    'PIVOT_VEGETABLE_NAME': 'Vegetable Name'
                 })
                 st.dataframe(display_df, use_container_width=True)
                 # Show summary
@@ -106,19 +105,33 @@ def show_editable_bills_section():
                     except:
                         pass
                 st.markdown(f"**Total Items: {total_items} | Grand Total: {grand_total:.2f}**")
-                # Download as PDF
-                if st.button(f"Download {kitchen} Bill as PDF", key=f"pdf_{kitchen}"):
-                    pdf_buffer = create_kitchen_bills_pdf(edited_df, selected_date)
-                    if pdf_buffer:
-                        st.download_button(
-                            label=f"Download {kitchen} Bill as PDF",
-                            data=pdf_buffer.getvalue(),
-                            file_name=f"{selected_hotel}_{kitchen}_bill_{selected_date.strftime('%Y%m%d')}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    else:
-                        st.warning("PDF generation failed.")
+                # Prepare DataFrame for PDF (match main bill module)
+                pdf_df = grouped.copy()
+                pdf_df['MAIN HOTEL NAME'] = selected_hotel
+                pdf_df['KITCHEN NAME'] = kitchen
+                pdf_df['DATE'] = selected_date
+                pdf_df['PIVOT_VEGETABLE_NAME'] = grouped['PIVOT_VEGETABLE_NAME']
+                pdf_df['UNITS'] = grouped['UNITS']
+                # Use TELUGU NAME from kitchen_df if available
+                if 'TELUGU NAME' in kitchen_df.columns:
+                    telugu_map = kitchen_df.set_index(['PIVOT_VEGETABLE_NAME', 'UNITS'])['TELUGU NAME'].to_dict()
+                    pdf_df['TELUGU NAME'] = grouped.apply(lambda row: telugu_map.get((row['PIVOT_VEGETABLE_NAME'], row['UNITS']), ''), axis=1)
+                else:
+                    pdf_df['TELUGU NAME'] = ''
+                pdf_df['QUANTITY'] = grouped['QUANTITY']
+                pdf_df['PRICE'] = grouped['PRICE']
+                # Reorder columns to match main bill module
+                pdf_df = pdf_df[['MAIN HOTEL NAME', 'KITCHEN NAME', 'DATE', 'PIVOT_VEGETABLE_NAME', 'UNITS', 'TELUGU NAME', 'QUANTITY', 'PRICE']]
+                # Download as PDF (trigger immediately)
+                pdf_buffer = create_kitchen_bills_pdf(pdf_df, selected_date)
+                st.download_button(
+                    label=f"Download {kitchen} Bill as PDF",
+                    data=pdf_buffer.getvalue() if pdf_buffer else b'',
+                    file_name=f"{selected_hotel}_{kitchen}_bill_{selected_date.strftime('%Y%m%d')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    disabled=pdf_buffer is None
+                )
                 all_kitchen_edits.append(edited_df)
             # Save all changed rows to a new sheet 'change' in Google Sheets
             if all_changes:
@@ -141,24 +154,50 @@ def show_editable_bills_section():
                             }]
                             body = {'requests': requests}
                             service.spreadsheets().batchUpdate(spreadsheetId=SPREADSHEET_ID, body=body).execute()
-                            # Add header row
-                            header = list(all_changes[0].index)
-                            service.spreadsheets().values().update(
+                        # For each changed row, find the original row in the main sheet and add row number and changed quantity
+                        main_df = get_google_sheets_data()
+                        main_df = main_df.reset_index().rename(columns={'index': 'ROW_NUMBER'})
+                        save_rows = []
+                        for changed in all_changes:
+                            # Find the matching row in the main sheet
+                            match = main_df[
+                                (main_df['MAIN HOTEL NAME'] == changed['MAIN HOTEL NAME']) &
+                                (main_df['KITCHEN NAME'] == changed['KITCHEN NAME']) &
+                                (main_df['DATE'] == changed['DATE']) &
+                                (main_df['PIVOT_VEGETABLE_NAME'] == changed['PIVOT_VEGETABLE_NAME']) &
+                                (main_df['UNITS'] == changed['UNITS'])
+                            ]
+                            if not match.empty:
+                                orig_row = match.iloc[0].to_dict()
+                                orig_row['Changed Quantity'] = changed['QUANTITY']
+                                save_rows.append(orig_row)
+                        if save_rows:
+                            # Add header if new sheet
+                            result = sheet.values().get(
+                                spreadsheetId=SPREADSHEET_ID,
+                                range=f"{change_sheet}!A1"
+                            ).execute()
+                            existing_values = result.get('values', [])
+                            if not existing_values:
+                                header = list(save_rows[0].keys())
+                                sheet.values().update(
+                                    spreadsheetId=SPREADSHEET_ID,
+                                    range=f"{change_sheet}!A1",
+                                    valueInputOption='RAW',
+                                    body={'values': [header]}
+                                ).execute()
+                            # Append changes
+                            values = [list(row.values()) for row in save_rows]
+                            sheet.values().append(
                                 spreadsheetId=SPREADSHEET_ID,
                                 range=f"{change_sheet}!A1",
                                 valueInputOption='RAW',
-                                body={'values': [header]}
+                                insertDataOption='INSERT_ROWS',
+                                body={'values': values}
                             ).execute()
-                        # Append changes
-                        values = [list(row.values) for row in all_changes]
-                        service.spreadsheets().values().append(
-                            spreadsheetId=SPREADSHEET_ID,
-                            range=f"{change_sheet}!A1",
-                            valueInputOption='RAW',
-                            insertDataOption='INSERT_ROWS',
-                            body={'values': values}
-                        ).execute()
-                        st.success(f"Saved {len(all_changes)} changed rows to Google Sheet 'change'.")
+                            st.success(f"Saved {len(save_rows)} changed rows to Google Sheet 'change'.")
+                        else:
+                            st.info("No matching rows found in main sheet for changes.")
                     except Exception as e:
                         st.error(f"Failed to save changes: {e}")
         else:
