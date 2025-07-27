@@ -22,9 +22,8 @@ def create_combined_report_pdf(veg_data, vendor_data, selected_date):
     
     # Main title
     title_style = create_title_style()
-    #title = Paragraph(f"Complete Order Summary Report - {selected_date.strftime('%Y-%m-%d')}", title_style)
-    #story.append(title)
-    story.append(selected_date.strftime('%d-%m-%Y'),title_style)
+    title = Paragraph(f"{selected_date.strftime('%Y-%m-%d')}", title_style)
+    story.append(title)
     
     # SECTION 1: VEGETABLE-WISE SUMMARY
     section1_title = create_section_title_style()
