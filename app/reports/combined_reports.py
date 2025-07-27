@@ -22,14 +22,14 @@ def create_combined_report_pdf(veg_data, vendor_data, selected_date):
     
     # Main title
     title_style = create_title_style()
-    title = Paragraph(f"Complete Order Summary Report - {selected_date.strftime('%Y-%m-%d')}", title_style)
-    story.append(title)
-    story.append(Spacer(1, 20))
+    #title = Paragraph(f"Complete Order Summary Report - {selected_date.strftime('%Y-%m-%d')}", title_style)
+    #story.append(title)
+    story.append(selected_date.strftime('%d-%m-%Y'),styles['Normal'])
     
     # SECTION 1: VEGETABLE-WISE SUMMARY
     section1_title = create_section_title_style()
-    story.append(Paragraph("SECTION 1: VEGETABLE-WISE ORDER SUMMARY", section1_title))
-    story.append(Spacer(1, 10))
+    #story.append(Paragraph("SECTION 1: VEGETABLE-WISE ORDER SUMMARY", section1_title))
+    #story.append(Spacer(1, 10))
     
     if veg_data.empty:
         story.append(Paragraph("No vegetable data available for the selected date.", styles['Normal']))
