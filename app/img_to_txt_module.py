@@ -6,6 +6,7 @@ import json
 import tempfile
 import os
 from groq_whisper import transcribe_audio, parse_voice_input, update_vegetable_data_with_voice
+from audio_recorder import create_audio_recorder
 from pymongo import MongoClient
 from groq import Groq
 from google.oauth2.service_account import Credentials
@@ -322,24 +323,18 @@ def image_txt_to_order_ui():
         )
         
         # Add voice input feature
-        st.subheader("🎤 Voice Input for Vegetable Updates")
-        st.write("Speak vegetable name and weight to update or add to the list")
+        st.subheader("🎤 Live Voice Input for Vegetable Updates")
+        st.write("Click 'Start' to begin recording. Speak vegetable name and weight, then click 'Stop Recording and Process'.")
         
-        # Audio recording widget
-        audio_bytes = st.audio_recorder()
+        # Create live audio recorder
+        webrtc_ctx, audio_path = create_audio_recorder()
         
-        if audio_bytes:
-            st.audio(audio_bytes, format="audio/wav")
-            
-            # Save audio to a temporary file for processing
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                tmp_file.write(audio_bytes)
-                tmp_file_path = tmp_file.name
-                
+        # Process audio when recording is stopped
+        if webrtc_ctx.state.playing == False and os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
             try:
                 with st.spinner("Transcribing audio..."):
-                    # Open the temporary file for transcription
-                    with open(tmp_file_path, 'rb') as audio_file:
+                    # Open the audio file for transcription
+                    with open(audio_path, 'rb') as audio_file:
                         transcription_text = transcribe_audio(audio_file)
                         st.info(f"🔊 Transcription: {transcription_text}")
                         
@@ -349,8 +344,8 @@ def image_txt_to_order_ui():
                 st.error(f"❌ Error processing audio: {e}")
             finally:
                 # Clean up the temporary file
-                if os.path.exists(tmp_file_path):
-                    os.unlink(tmp_file_path)
+                if os.path.exists(audio_path):
+                    os.unlink(audio_path)
         if st.button("Save Edits", key="imgtxt_save_edits"):
             st.session_state['imgtxt_edited_df'] = edited_df.copy()
             st.success("Edits saved. You can now export or download the updated data.")
