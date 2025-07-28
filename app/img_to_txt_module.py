@@ -3,6 +3,9 @@ import pandas as pd
 import datetime
 import base64
 import json
+import tempfile
+import os
+from openai_integration import process_images_via_openai, transcribe_audio, parse_voice_input
 from pymongo import MongoClient
 from groq import Groq
 from google.oauth2.service_account import Credentials
@@ -208,22 +211,6 @@ def build_dataframe_from_items(items_extracted, date_input, hotel_name, kitchen_
             "DATE": date_input.strftime("%Y-%m-%d"),
             "MAIN_HOTEL_NAME": hotel_name,
             "KITCHEN_NAME": kitchen_name,
-            "PIVOT_VEGETABLE_NAME": item.get("common_name", item.get("item_name", "")),
-            "QUANTITY": item.get("quantity", 0)
-        })
-    return pd.DataFrame(rows_for_df)
-
-def image_txt_to_order_ui():
-    if 'response_text' not in st.session_state:
-        st.session_state['response_text'] = 'value'
-    if 'processed_items' not in st.session_state:
-        st.session_state['processed_items'] = []
-    st.title("🏨 Hotel Orders Processing System (Image/Text to Order)")
-    col1, col2 = st.columns(2)
-    with col1:
-        date_input = st.date_input("Select Date", datetime.date.today() + datetime.timedelta(days=1))
-        hotel_name = st.selectbox(
-            'Hotel Name',
             ('NOVOTEL', 'GRANDBAY', 'RADISSONBLU', 'BHEEMILI')
         )
     with col2:
@@ -251,6 +238,13 @@ def image_txt_to_order_ui():
         for idx, uploaded_image in enumerate(uploaded_images):
             with cols[idx % 4]:
                 st.image(uploaded_image, caption=f"Image {idx+1}", use_column_width=True)
+    # Add API selection option
+    api_option = st.radio(
+        "Select API for Image Processing:",
+        ("OpenAI", "Groq"),
+        horizontal=True
+    )
+    
     if st.button("🚀 Process Images + Text", type="primary", use_container_width=True):
         if not uploaded_images and not text_message.strip():
             st.error("Please upload at least one image OR provide text instructions.")
@@ -276,7 +270,14 @@ def image_txt_to_order_ui():
                                 continue
                     if images_data or text_message.strip():
                         st.info(f"🔄 Analyzing {len(images_data)} images + text instructions...")
-                        items_extracted = process_images_and_text_via_groq(images_data, text_message, hotel_name)
+                        
+                        # Use selected API for processing
+                        if api_option == "OpenAI":
+                            from process_openai import process_images_and_text_via_openai
+                            items_extracted = process_images_and_text_via_openai(images_data, text_message, hotel_name)
+                        else:
+                            items_extracted = process_images_and_text_via_groq(images_data, text_message, hotel_name)
+                            
                         if items_extracted:
                             st.session_state.processed_items = items_extracted
                             st.success(f"✅ Successfully extracted {len(items_extracted)} items from images + text!")
@@ -291,7 +292,7 @@ def image_txt_to_order_ui():
         st.subheader("📊 Review and Edit Extracted Data")
         df = build_dataframe_from_items(
             st.session_state.processed_items, 
-            date_input, 
+            date_input,
             hotel_name, 
             kitchen_name
         )
@@ -310,6 +311,38 @@ def image_txt_to_order_ui():
             num_rows="dynamic",
             use_container_width=True
         )
+        
+        # Add voice input feature
+        st.subheader("🎤 Voice Input for Vegetable Updates")
+        st.write("Speak vegetable name and weight to update or add to the list")
+        
+        # Audio recording widget
+        audio_bytes = st.audio_recorder()
+        
+        if audio_bytes:
+            st.audio(audio_bytes, format="audio/wav")
+            
+            # Save audio to a temporary file for processing
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+                tmp_file.write(audio_bytes)
+                tmp_file_path = tmp_file.name
+                
+            try:
+                with st.spinner("Transcribing audio..."):
+                    # Open the temporary file for transcription
+                    with open(tmp_file_path, 'rb') as audio_file:
+                        transcription_text = transcribe_audio(audio_file)
+                        st.info(f"🔊 Transcription: {transcription_text}")
+                        
+                    # Update vegetable data based on voice input
+                    from process_openai import update_vegetable_data_with_voice
+                    edited_df = update_vegetable_data_with_voice(edited_df, transcription_text)
+            except Exception as e:
+                st.error(f"❌ Error processing audio: {e}")
+            finally:
+                # Clean up the temporary file
+                if os.path.exists(tmp_file_path):
+                    os.unlink(tmp_file_path)
         if st.button("Save Edits", key="imgtxt_save_edits"):
             st.session_state['imgtxt_edited_df'] = edited_df.copy()
             st.success("Edits saved. You can now export or download the updated data.")
