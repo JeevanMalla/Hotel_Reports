@@ -5,7 +5,7 @@ import base64
 import json
 import tempfile
 import os
-from openai_integration import process_images_via_openai, transcribe_audio, parse_voice_input
+from groq_whisper import transcribe_audio, parse_voice_input, update_vegetable_data_with_voice
 from pymongo import MongoClient
 from groq import Groq
 from google.oauth2.service_account import Credentials
@@ -256,12 +256,7 @@ def image_txt_to_order_ui():
         for idx, uploaded_image in enumerate(uploaded_images):
             with cols[idx % 4]:
                 st.image(uploaded_image, caption=f"Image {idx+1}", use_column_width=True)
-    # Add API selection option
-    api_option = st.radio(
-        "Select API for Image Processing:",
-        ("OpenAI", "Groq"),
-        horizontal=True
-    )
+    # Using Groq for image processing
     
     if st.button("🚀 Process Images + Text", type="primary", use_container_width=True):
         if not uploaded_images and not text_message.strip():
@@ -289,12 +284,8 @@ def image_txt_to_order_ui():
                     if images_data or text_message.strip():
                         st.info(f"🔄 Analyzing {len(images_data)} images + text instructions...")
                         
-                        # Use selected API for processing
-                        if api_option == "OpenAI":
-                            from process_openai import process_images_and_text_via_openai
-                            items_extracted = process_images_and_text_via_openai(images_data, text_message, hotel_name)
-                        else:
-                            items_extracted = process_images_and_text_via_groq(images_data, text_message, hotel_name)
+                        # Use Groq for processing
+                        items_extracted = process_images_and_text_via_groq(images_data, text_message, hotel_name)
                             
                         if items_extracted:
                             st.session_state.processed_items = items_extracted
@@ -353,7 +344,6 @@ def image_txt_to_order_ui():
                         st.info(f"🔊 Transcription: {transcription_text}")
                         
                     # Update vegetable data based on voice input
-                    from process_openai import update_vegetable_data_with_voice
                     edited_df = update_vegetable_data_with_voice(edited_df, transcription_text)
             except Exception as e:
                 st.error(f"❌ Error processing audio: {e}")
