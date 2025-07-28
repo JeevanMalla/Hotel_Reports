@@ -211,6 +211,24 @@ def build_dataframe_from_items(items_extracted, date_input, hotel_name, kitchen_
             "DATE": date_input.strftime("%Y-%m-%d"),
             "MAIN_HOTEL_NAME": hotel_name,
             "KITCHEN_NAME": kitchen_name,
+            "PIVOT_VEGETABLE_NAME": item.get("common_name", item.get("item_name", "")),
+            "QUANTITY": item.get("quantity", 0)
+        })
+    return pd.DataFrame(rows_for_df)
+
+def image_txt_to_order_ui():
+    if 'response_text' not in st.session_state:
+        st.session_state['response_text'] = 'value'
+    if 'processed_items' not in st.session_state:
+        st.session_state['processed_items'] = []
+    if 'audio_data' not in st.session_state:
+        st.session_state['audio_data'] = None
+    st.title("🏨 Hotel Orders Processing System (Image/Text to Order)")
+    col1, col2 = st.columns(2)
+    with col1:
+        date_input = st.date_input("Select Date", datetime.date.today() + datetime.timedelta(days=1))
+        hotel_name = st.selectbox(
+            'Hotel Name',
             ('NOVOTEL', 'GRANDBAY', 'RADISSONBLU', 'BHEEMILI')
         )
     with col2:
