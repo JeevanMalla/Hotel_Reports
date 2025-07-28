@@ -67,7 +67,7 @@ Extract items from BOTH the images and text message above."""
         
         # Call OpenAI API
         response = client.chat.completions.create(
-            model="gpt-4-vision-preview",  # Using GPT-4 Vision model
+            model="gpt-4o-mini-2024-07-18",  # Using GPT-4 Vision model
             messages=[
                 {"role": "user", "content": content}
             ],
@@ -113,7 +113,7 @@ def parse_voice_input(transcription: str) -> Dict[str, Any]:
     try:
         # Use OpenAI to parse the transcription
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini-2024-07-18",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that extracts vegetable names and quantities from text. Extract ONLY the vegetable name and quantity. Return the result as a JSON object with keys 'vegetable_name' and 'quantity'."},
                 {"role": "user", "content": f"Extract the vegetable name and quantity from this text: '{transcription}'"}
