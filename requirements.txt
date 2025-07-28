@@ -8,3 +8,4 @@ numpy>=1.21.0
 pymongo>=4.3.0
 Groq    
 openai
+streamlit-webrtc
