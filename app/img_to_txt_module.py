@@ -5,8 +5,6 @@ import base64
 import json
 import tempfile
 import os
-from realtime_audio_transcription import st_realtime_audio
-from openai_audio import parse_voice_input_openai, update_vegetable_data_with_voice_openai
 from pymongo import MongoClient
 from groq import Groq
 from google.oauth2.service_account import Credentials
@@ -322,24 +320,7 @@ def image_txt_to_order_ui():
             use_container_width=True
         )
         
-        # Add voice input feature with real-time transcription
-        st.subheader("🎤 Real-time Voice Input for Vegetable Updates")
-        st.write("Click 'Start Recording' to begin recording. Speak vegetable name and weight, then click 'Stop Recording'.")
-        st.write("You'll see the transcription in real-time as you speak!")
-        
-        # Create real-time audio transcription component
-        transcription_text = st_realtime_audio()
-        
-        # Process transcription when recording is complete
-        if transcription_text:
-            try:
-                st.success(f"🔊 Final Transcription: {transcription_text}")
-                
-                # Update vegetable data based on voice input
-                edited_df = update_vegetable_data_with_voice_openai(edited_df, transcription_text)
-            except Exception as e:
-                st.error(f"❌ Error processing transcription: {e}")
-                st.exception(e)
+        # Voice feature has been removed
         if st.button("Save Edits", key="imgtxt_save_edits"):
             st.session_state['imgtxt_edited_df'] = edited_df.copy()
             st.success("Edits saved. You can now export or download the updated data.")
